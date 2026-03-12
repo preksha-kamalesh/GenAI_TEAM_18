@@ -117,11 +117,21 @@ class DatasetLoader:
                 )
         return records
 
-    def load_documents(self, docs_dir: str) -> list[dict]:
+    def load_documents(
+        self, docs_dir: str, chunk_size: int = 0, chunk_overlap: int = 50
+    ) -> list[dict]:
         """Load a knowledge corpus from a directory of text files.
 
         Each .txt file is treated as one document. Returns a list of dicts
         with keys: 'text', 'source'.
+
+        Args:
+            docs_dir: Path to directory of .txt files.
+            chunk_size: If > 0, split long documents into chunks of this many
+                        words. Recommended: 200 (fits within the 256-token
+                        limit of all-MiniLM-L6-v2). 0 = no chunking.
+            chunk_overlap: Number of overlapping words between consecutive
+                          chunks (helps preserve context at boundaries).
         """
         documents = []
         for fname in sorted(os.listdir(docs_dir)):
@@ -132,9 +142,65 @@ class DatasetLoader:
                 continue
             with open(fpath, "r", encoding="utf-8") as f:
                 text = f.read().strip()
-            if text:
+            if not text:
+                continue
+
+            text = self.preprocess_text(text)
+
+            if chunk_size > 0:
+                chunks = self.chunk_text(text, chunk_size, chunk_overlap)
+                for i, chunk in enumerate(chunks):
+                    documents.append({
+                        "text": chunk,
+                        "source": fname,
+                        "chunk_index": i,
+                    })
+            else:
                 documents.append({"text": text, "source": fname})
         return documents
+
+    # ------------------------------------------------------------------
+    # Text Preprocessing & Chunking
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def preprocess_text(text: str) -> str:
+        """Clean and normalize raw text.
+
+        - Collapse multiple whitespace/newlines into single spaces
+        - Strip leading/trailing whitespace
+        """
+        import re
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+
+    @staticmethod
+    def chunk_text(text: str, chunk_size: int = 200, overlap: int = 50) -> list[str]:
+        """Split text into overlapping word-level chunks.
+
+        Args:
+            text: The text to split.
+            chunk_size: Max words per chunk.
+            overlap: Words shared between consecutive chunks.
+
+        Returns:
+            List of text chunks.
+        """
+        words = text.split()
+        if len(words) <= chunk_size:
+            return [text]
+
+        chunks = []
+        start = 0
+        step = max(chunk_size - overlap, 1)
+        while start < len(words):
+            end = start + chunk_size
+            chunk = " ".join(words[start:end])
+            chunks.append(chunk)
+            if end >= len(words):
+                break
+            start += step
+        return chunks
 
     # ------------------------------------------------------------------
     # Internal parsers for HuggingFace datasets

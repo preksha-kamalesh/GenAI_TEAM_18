@@ -1,0 +1,7 @@
+[
+  {"question": "What is diabetes?", "answer": "Diabetes mellitus is a group of metabolic diseases characterized by high blood sugar levels.", "source": "medical"},
+  {"question": "What are types of machine learning?", "answer": "Supervised learning, unsupervised learning, and reinforcement learning.", "source": "tech"},
+  {"question": "What causes climate change?", "answer": "Human activities, primarily burning of fossil fuels like coal, oil, and gas.", "source": "environment"},
+  {"question": "What is deep learning?", "answer": "Deep learning is a subset of machine learning that uses artificial neural networks with multiple layers.", "source": "tech"},
+  {"question": "What are greenhouse gases?", "answer": "The main greenhouse gases include carbon dioxide and methane.", "source": "environment"}
+]
