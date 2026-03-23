@@ -1,15 +1,32 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyo
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
 
 # Virtual environment
 .venv/
+venv/
+env/
 
 # FAISS index files (generated)
 data/index/
+
+# Local model/cache artifacts (optional project-local cache dirs)
+.cache/
+huggingface/
+
+# Environment files
+.env
+.env.*
 
 # OS
 .DS_Store
