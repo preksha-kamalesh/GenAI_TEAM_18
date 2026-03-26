@@ -8,3 +8,5 @@ transformers>=4.30.0
 torch>=2.0.0
 spacy>=3.5.0
 openai>=0.27.0  # Optional: for GPT integration
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0

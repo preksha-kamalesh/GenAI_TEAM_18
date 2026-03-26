@@ -12,7 +12,9 @@ Generated Answer + Atomic Claims + Retrieved Documents
 
 from __future__ import annotations
 
+import platform
 import re
+import sys
 from typing import Dict, List, Optional, Union
 
 
@@ -24,6 +26,11 @@ class ClaimVerifier:
     LABEL_CONTRADICTION = "Contradiction"
     LABEL_NEUTRAL = "Neutral"
 
+    @staticmethod
+    def _should_force_heuristic_runtime() -> bool:
+        """Avoid unstable native inference path on known-bad local runtime combos."""
+        return platform.system() == "Darwin" and sys.version_info < (3, 10)
+
     def __init__(self, model_name: str = DEFAULT_NLI_MODEL, device: int = -1):
         """
         Args:
@@ -33,6 +40,15 @@ class ClaimVerifier:
         self.model_name = model_name
         self.device = device
         self._use_heuristic = False
+
+        if self._should_force_heuristic_runtime():
+            print(
+                "Warning: using lexical-overlap verification on macOS + Python < 3.10 "
+                "to avoid model runtime crashes."
+            )
+            self.nli = None
+            self._use_heuristic = True
+            return
 
         try:
             from transformers import pipeline

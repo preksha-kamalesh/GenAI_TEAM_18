@@ -3,7 +3,7 @@ Download a real dataset and build the FAISS index.
 This only needs to be run once — the index is saved to data/index/.
 
 Usage:
-    python download_and_index.py --dataset pubmed_qa --max-samples 200
+    python download_and_index.py --dataset pubmed_qa --max-samples 1500
     python download_and_index.py --dataset trivia_qa --max-samples 500
     python download_and_index.py --corpus ./data/sample_corpus
 """
@@ -20,7 +20,7 @@ def main():
                         help="HuggingFace dataset to download")
     parser.add_argument("--corpus", type=str, default=None,
                         help="Path to local .txt corpus directory instead")
-    parser.add_argument("--max-samples", type=int, default=200,
+    parser.add_argument("--max-samples", type=int, default=1500,
                         help="Max records to download (keeps it fast)")
     parser.add_argument("--chunk-size", type=int, default=200,
                         help="Words per chunk for corpus docs (0 = no chunking)")
@@ -30,7 +30,7 @@ def main():
 
     if not args.dataset and not args.corpus:
         print("Provide --dataset or --corpus. Example:")
-        print("  python download_and_index.py --dataset pubmed_qa --max-samples 200")
+        print("  python download_and_index.py --dataset pubmed_qa --max-samples 1500")
         print("  python download_and_index.py --corpus ./data/sample_corpus")
         return
 

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RAG FactCheck Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-a"></div>
+    <div class="bg-orb orb-b"></div>
+
+    <main class="shell">
+      <header class="hero">
+        <p class="eyebrow">GenAI Team 18</p>
+        <h1>RAG FactCheck Console</h1>
+        <p class="sub">Ask a question, retrieve evidence, generate an answer, and verify claims in one pass.</p>
+      </header>
+
+      <section class="panel query-panel">
+        <label for="question">Question</label>
+        <div class="query-row">
+          <input id="question" type="text" placeholder="Does hypoglycaemia increase cardiovascular risk?" />
+          <button id="askBtn">Run Pipeline</button>
+        </div>
+        <p id="status" class="status">Ready</p>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>Metrics</h2>
+          <div id="metrics" class="metrics"></div>
+        </article>
+
+        <article class="panel">
+          <h2>Verified Answer</h2>
+          <pre id="answer" class="content"></pre>
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>Claims</h2>
+        <div id="claims" class="claims"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Retrieved Evidence</h2>
+        <div id="docs" class="docs"></div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
