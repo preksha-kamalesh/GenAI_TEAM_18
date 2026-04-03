@@ -308,22 +308,88 @@ class ClaimVerifier:
         return scores
 
     def _heuristic_scores(self, premise: str, hypothesis: str) -> Dict[str, float]:
-        """Fallback when NLI model is unavailable."""
-        p_tokens = set(self._tokenize(premise))
-        h_tokens = set(self._tokenize(hypothesis))
+        """Improved lexical-overlap fallback when NLI model is unavailable.
+
+        Uses multi-signal scoring:
+        - Content-word overlap (excludes stopwords)
+        - Bigram overlap for phrase-level matching
+        - Negation mismatch detection
+        - Coverage thresholds that avoid false entailment
+        """
+        STOPWORDS = {
+            "the", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would",
+            "could", "should", "may", "might", "shall", "can",
+            "in", "on", "at", "to", "for", "of", "with", "by", "from",
+            "an", "it", "its", "this", "that", "these", "those",
+            "and", "or", "but", "if", "as", "than", "also", "very",
+        }
+
+        # Basic stemming (remove -s, -es, -ed, -ing suffixes)
+        def stem(word):
+            if word.endswith("ing") and len(word) > 5: return word[:-3]
+            if word.endswith("es") and len(word) > 4: return word[:-2]
+            if word.endswith("ed") and len(word) > 4: return word[:-2]
+            if word.endswith("s") and len(word) > 3: return word[:-1]
+            return word
+
+        p_tokens = [stem(t) for t in self._tokenize(premise)]
+        h_tokens = [stem(t) for t in self._tokenize(hypothesis)]
 
         if not h_tokens:
             return {"entailment": 0.0, "contradiction": 0.0, "neutral": 1.0}
 
-        overlap = len(p_tokens.intersection(h_tokens)) / max(1, len(h_tokens))
-        contradiction_cues = {"not", "no", "never", "none", "without"}
-        has_neg_mismatch = any(w in contradiction_cues for w in p_tokens) ^ any(
-            w in contradiction_cues for w in h_tokens
+        # Content tokens (not stopwords, length > 2)
+        p_content = set(t for t in p_tokens if t not in STOPWORDS and len(t) > 2)
+        h_content = set(t for t in h_tokens if t not in STOPWORDS and len(t) > 2)
+
+        if not h_content:
+            return {"entailment": 0.0, "contradiction": 0.0, "neutral": 1.0}
+
+        # Unigram overlap on content words
+        content_overlap = len(p_content & h_content) / len(h_content)
+
+        # Bigram overlap for phrase-level matching
+        p_bigrams = set(zip(p_tokens, p_tokens[1:]))
+        h_bigrams = set(zip(h_tokens, h_tokens[1:]))
+        bigram_overlap = (
+            len(p_bigrams & h_bigrams) / max(1, len(h_bigrams))
+            if h_bigrams else 0.0
         )
 
-        entailment = min(0.95, 0.15 + overlap)
-        contradiction = 0.65 if has_neg_mismatch and overlap > 0.4 else max(0.0, 0.35 - overlap)
-        neutral = max(0.0, 1.0 - max(entailment, contradiction))
+        # Negation detection
+        negation_cues = {"not", "no", "never", "none", "without", "neither",
+                         "nor", "cannot", "dont", "doesnt", "didnt", "wont",
+                         "isnt", "arent", "wasnt", "werent", "hasnt", "havent"}
+        p_has_neg = bool(set(p_tokens) & negation_cues)
+        h_has_neg = bool(set(h_tokens) & negation_cues)
+        negation_mismatch = p_has_neg != h_has_neg
+
+        # Combined similarity score
+        similarity = 0.7 * content_overlap + 0.3 * bigram_overlap
+
+        # Compute scores with conservative thresholds
+        if negation_mismatch and content_overlap > 0.4:
+            # Topic matches but opposite polarity → contradiction
+            entailment = max(0.0, similarity * 0.2)
+            contradiction = min(0.95, 0.4 + similarity * 0.6)
+            neutral = max(0.0, 1.0 - entailment - contradiction)
+        elif similarity >= 0.5:
+            # Strong overlap → likely entailment
+            entailment = min(0.95, 0.3 + similarity * 0.65)
+            contradiction = 0.0
+            neutral = max(0.0, 1.0 - entailment)
+        elif similarity >= 0.2:
+            # Moderate overlap → weak entailment, mostly neutral
+            entailment = similarity * 0.7
+            contradiction = 0.0
+            neutral = max(0.0, 1.0 - entailment)
+        else:
+            # Low overlap → neutral (claim is unrelated to the document)
+            entailment = similarity * 0.2
+            contradiction = 0.0
+            neutral = max(0.0, 1.0 - entailment)
+
         return {
             "entailment": round(entailment, 4),
             "contradiction": round(contradiction, 4),

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import logging
 import os
+import time
 import re
 from pathlib import Path
 from typing import Any
@@ -90,15 +92,21 @@ class PipelineService:
     }
 
     def __init__(self) -> None:
+        t_start = time.perf_counter()
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger("PipelineService")
+
         self.retriever = Retriever(top_k=5, index_path="./data/index")
         self.extractor = ClaimExtractor()
         self.verifier = ClaimVerifier(model_name="facebook/bart-large-mnli", device=-1)
         self.generator = self._build_generator()
-        self.min_index_docs = int(os.getenv("RAG_MIN_INDEX_DOCS", "1500"))
+        self.min_index_docs = int(os.getenv("RAG_MIN_INDEX_DOCS", "500"))
         self.relevance_distance_threshold = float(os.getenv("RAG_RELEVANCE_MAX_DISTANCE", "1.18"))
         self.intent_coverage_threshold = float(os.getenv("RAG_INTENT_MIN_COVERAGE", "0.4"))
-        self.rebuild_samples = int(os.getenv("RAG_REBUILD_SAMPLES", "1500"))
+        self.rebuild_samples = int(os.getenv("RAG_REBUILD_SAMPLES", "1000"))
         self._ensure_index()
+        self._warmup()
+        self.logger.info(f"PipelineService ready in {time.perf_counter() - t_start:.1f}s")
 
     def _build_generator(self) -> RAGGenerator:
         try:
@@ -126,6 +134,14 @@ class PipelineService:
         )
         self.retriever.save()
 
+    def _warmup(self) -> None:
+        """Pre-encode a dummy query to warm up the embedding model."""
+        try:
+            self.retriever.db.encode(["warmup"])
+            self.logger.info("Embedding model warmed up.")
+        except Exception:
+            pass
+
     @staticmethod
     def _tokenize(text: str) -> list[str]:
         return [t for t in re.findall(r"[a-z0-9]+", text.lower()) if len(t) > 2]
@@ -146,7 +162,12 @@ class PipelineService:
         return coverage, matched, missing
 
     def ask(self, question: str, top_k: int) -> dict[str, Any]:
+        timings: dict[str, float] = {}
+        t0 = time.perf_counter()
+
         retrieved = self.retriever.retrieve(question, top_k=top_k)
+        timings["retrieval_ms"] = round((time.perf_counter() - t0) * 1000, 1)
+
         docs_for_generation = [r["document"] for r in retrieved]
 
         if not retrieved:
@@ -168,6 +189,7 @@ class PipelineService:
                     "reason": "no_retrieval_results",
                 },
                 "retrieved_documents": [],
+                "timings": timings,
             }
 
         top_distance = float(retrieved[0]["score"])
@@ -211,29 +233,41 @@ class PipelineService:
                     }
                     for r in retrieved
                 ],
+                "timings": timings,
             }
 
+        t1 = time.perf_counter()
         result = self.generator.generate_answer(
             question=question,
             retrieved_docs=docs_for_generation,
             max_tokens=256,
             temperature=0.5,
         )
+        timings["generation_ms"] = round((time.perf_counter() - t1) * 1000, 1)
 
+        t2 = time.perf_counter()
         claims = self.extractor.extract_claims_with_metadata(result["answer"])
+        timings["claim_extraction_ms"] = round((time.perf_counter() - t2) * 1000, 1)
+
+        t3 = time.perf_counter()
         verification = self.verifier.run_verification(
             generated_answer=result["answer"],
             extracted_claims=claims,
             retrieved_documents=docs_for_generation,
             baseline_hallucination_rate=None,
         )
+        timings["verification_ms"] = round((time.perf_counter() - t3) * 1000, 1)
+        timings["total_ms"] = round((time.perf_counter() - t0) * 1000, 1)
 
         return {
             "question": question,
             "generated_answer": result["answer"],
             "final_verified_answer": verification["final_verified_answer"],
             "claims": verification["verified_claims"],
-            "metrics": verification["metrics"],
+            "metrics": {
+                **verification["metrics"],
+                "verification_mode": "heuristic" if self.verifier._use_heuristic else "nli_model",
+            },
             "retrieval_guard": {
                 "triggered": False,
                 "top_distance": round(top_distance, 4),
@@ -250,6 +284,7 @@ class PipelineService:
                 }
                 for r in retrieved
             ],
+            "timings": timings,
         }
 
 

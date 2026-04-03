@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>RAG FactCheck Console</title>
+    <meta name="description" content="RAG FactCheck Console — ask questions, retrieve evidence, generate answers, and verify claims with real-time pipeline metrics." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -40,6 +41,10 @@
           <pre id="answer" class="content"></pre>
         </article>
       </section>
+
+      <section id="guard" class="panel" style="display:none"></section>
+
+      <div id="timings" class="timings-bar"></div>
 
       <section class="panel">
         <h2>Claims</h2>
